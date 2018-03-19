@@ -1,23 +1,25 @@
 #!/usr/bin/python3.5
+"""
+Input is a .tid file with following format:
+
+Output is a pickle file named vm.pkl in the kernel/ folder 
+where the traces are stored with the following format:
+
+    list_of_tids = pickle.load(f) as a list of integers
+    trace_dict = pickle.load(f) as a dict of strings indexed by tid
+    timestamp_dict = pickle.load(f) as a dict of list of timestamps in nanoseconds and indexed by tid
+
+"""
 import pickle
 from collections import Counter
 import babeltrace
 import sys
 import statistics
 import numpy as np
-#from sklearn.cluster import KMeans
 from sklearn import datasets
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
-#import matplotlib.pyplot as plt
-#import matplotlib.pyplot as plt1
 import time
-# Though the following import is not directly being used, it is required
-# for 3D projection to work
-#from mpl_toolkits.mplot3d import Axes3D
-
-#plt.ion()
-#colors = {0: '#000000', 1: '#15b01a', 7: '#0343df', 10: '#9a0eea', 12: '#e50000', 30: '#ff796c', 31: '#ffff14', 32: '#f97306', 48: '#00ffff', 49: '#01ff07', 52: '#75bbfd'}
 
 # a trace collection holds one or more traces
 col = babeltrace.TraceCollection()
@@ -49,7 +51,6 @@ for s in trace_file_names:
     trace = {i: '' for i in tids} #initialize empty dict of {tid: trace string=''}
     timestamp = {i: [] for i in tids} #initialize empty dict of {tid: event timestamp list=[]}
     index = 0
-#    j=0
    # iterate on events
     for event in col.events:
         if event['tid'] in tids: #if event belongs to enlisted tid (qemu runnning the VM)
@@ -57,8 +58,6 @@ for s in trace_file_names:
             ts = event.timestamp
             if index == 1: 
                 start = ts
-#            if index >= 10: 
-#                break
             if not (event.name in stopwords): index = index + 1
             trace[tid] = trace[tid] + ' ' + event.name.replace('_x86_','_')
             if 'exit_reason' in event: trace[tid] = trace[tid] + '_' + str(event['exit_reason']) 
@@ -81,12 +80,6 @@ for s in trace_file_names:
                     f.close()
                     trace_new = {i: trace_old[i]+trace[i] for i in tids}
                     timestamp_new = {i: timestamp_old[i]+timestamp[i] for i in tids}
-#                    print("**************************",j)
-#                    print("**************************",j)
-#                    for i in tids:
-#                        print(i,'::::::',trace_new[i])
-#                    for i in tids:
-#                        print(i,'::::::',timestamp_new[i])
                     f = open(pklfile,'wb')
                     pickle.dump(trace_new,f)
                     pickle.dump(timestamp_new,f)
@@ -95,8 +88,6 @@ for s in trace_file_names:
                     timestamp_new = {}
                     trace_old = {}
                     timestamp_old = {}
-#                    j=j+1
-#                    if (j==6): break
                 trace = {i: '' for i in tids} #reset to empty dict of {tid: trace string=''}
                 timestamp = {i: [] for i in tids} #reset to empty dict of {tid: event timestamp list=[]}
                 

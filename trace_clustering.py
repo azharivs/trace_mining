@@ -86,6 +86,12 @@ op = OptionParser()
 op.add_option("--path-file",
               dest="input_filename", type="string",
               help="Take list of trace filenames from this .tid file.")
+op.add_option("--n-clusters",
+              dest="true_k", type="int", default=2,
+              help="Number of clusters to compute.")
+op.add_option("--ngram",
+              dest="n_gram", type="int", default=1,
+              help="n-grams used for tokenizing the trace events (number of events to group together).")
 op.add_option("--sig-patterns-file",
               dest="sig_patterns_filename", type="string",
               help="Pickle file to obtain/store list of significant patterns.")
@@ -157,11 +163,6 @@ for s in trace_file_names:
     if filename == "": break
     tid = int(s.splitlines()[0].split(':')[2])
     lbl = int(s.splitlines()[0].split(':')[0])
-    if first == 0:
-        first = 1
-        target=np.array(lbl)
-    else:
-        target=np.append(target,lbl)
     filename = filename.replace("#","")
     trace_list.append(filename)    
     
@@ -175,6 +176,7 @@ for s in trace_file_names:
         trace=''
         index = 0
        # iterate on events
+       #TODO: totally remove these parts and only read from vm.pkl 
         for event in col.events:
             if event['tid'] == tid:
                 ts = event.timestamp
@@ -193,14 +195,25 @@ for s in trace_file_names:
     else: #there is a corpus file for this trace so read from it
         print('================= READING FROM CORPUS FILE: ',corpus_filename)        
         f = open(corpus_filename,'rb')
-        dur = pickle.load(f)
-        index = pickle.load(f)
-        trace = pickle.load(f)
+#        dur = pickle.load(f)
+#        index = pickle.load(f)
+        tids = pickle.load(f)
+        trace_dict = pickle.load(f)
+        timestamp_dict = pickle.load(f)
         f.close()
         
-    duration.append(dur)
-    items.append(index)    
-    corpus.append(trace)
+#    duration.append(dur)
+#    items.append(index)    
+    corpus = corpus + list(trace_dict[i] for i in tids)
+    print(tids)
+    print(len(corpus))
+    for i in tids: #For now the value of tid is used as VM label. TODO: it should be its nature derived from the .tid file
+        if first == 0:
+            first = 1
+            target=np.array(i)
+        else:
+            target=np.append(target,i)
+
 
 TraceDataSet = namedtuple("TraceDataSet","corpus target_names target")
 trace_dataset = TraceDataSet(corpus,trace_list,target)
@@ -210,7 +223,7 @@ print("%d categories" % len(trace_dataset.target_names))
 print()
 
 labels = trace_dataset.target
-true_k = 3*np.unique(labels).shape[0]
+true_k = opts.true_k #3*np.unique(labels).shape[0]
 
 print("Extracting features from the training traceset using a sparse vectorizer")
 t0 = time()
@@ -228,7 +241,7 @@ if opts.use_hashing:
                                        binary=False)
 else:
     vectorizer = TfidfVectorizer(max_df=1.0, max_features=opts.n_features,
-                                 min_df=0.0, stop_words=stopwords,ngram_range=(1,1),
+                                 min_df=0.0, stop_words=stopwords,ngram_range=(opts.n_gram,opts.n_gram),
                                  use_idf=opts.use_idf)
 X = vectorizer.fit_transform(trace_dataset.corpus)
 
@@ -308,7 +321,7 @@ if not opts.use_hashing:
     tmp = []
     for i in range(true_k):
         print("Cluster %d:" % i, end='')
-        for ind in order_centroids[i, :5]:
+        for ind in order_centroids[i, :10]:
             print(' %s' % terms[ind], end='...')
             tmp.append(terms[ind])
         print()
@@ -355,6 +368,7 @@ for s in trace_file_names:
         trace=''
         index = 0
        # iterate on events
+       #TODO: totally remove these parts and only read from vm.pkl 
         for event in col.events:
             if event['tid'] == tid:
                 ts = event.timestamp
@@ -373,7 +387,7 @@ for s in trace_file_names:
     else: #there is a corpus file for this trace so read from it
         print('================= READING FROM CORPUS FILE: ',corpus_filename)        
         f = open(corpus_filename,'rb')
-        dur = pickle.load(f)
+        dur = pickle.load(f) #TODO needs to be adapted for the new multi VM pickle file format as done for the clustering above
         index = pickle.load(f)
         trace = pickle.load(f)
         f.close()
