@@ -5,7 +5,7 @@ Clustering trace files using k-means
 =======================================
 
 This is an example showing how the scikit-learn can be used to cluster
-trace files by topics using a bag-of-words approach. This example uses
+trace files by behavior using a bag-of-words approach. This example uses
 a scipy.sparse matrix to store the features instead of standard numpy arrays.
 
 Two feature extraction methods can be used in this example:
@@ -34,12 +34,11 @@ and discover latent patterns in the data.
 It can be noted that k-means (and minibatch k-means) are very sensitive to
 feature scaling and that in this case the IDF weighting helps improve the
 quality of the clustering by quite a lot as measured against the "ground truth"
-provided by the class label assignments of the 20 newsgroups dataset.
 
 This improvement is not visible in the Silhouette Coefficient which is small
-for both as this measure seem to suffer from the phenomenon called
+for both as this measure seems to suffer from the phenomenon called
 "Concentration of Measure" or "Curse of Dimensionality" for high dimensional
-datasets such as text data. Other measures such as V-measure and Adjusted Rand
+datasets such as trace data. Other measures such as V-measure and Adjusted Rand
 Index are information theoretic based evaluation scores: as they are only based
 on cluster assignments rather than distances, hence not affected by the curse
 of dimensionality.
@@ -87,6 +86,12 @@ op = OptionParser()
 op.add_option("--path-file",
               dest="input_filename", type="string",
               help="Take list of trace filenames from this .tid file.")
+op.add_option("--sig-patterns-file",
+              dest="sig_patterns_filename", type="string",
+              help="Pickle file to obtain/store list of significant patterns.")
+op.add_option("--no-sig",
+              action="store_false", dest="load_sig", default=True,
+              help="Do not load significant patterns file.")
 op.add_option("--lsa",
               dest="n_components", type="int",
               help="Preprocess traces with latent semantic analysis.")
@@ -139,6 +144,12 @@ stopwords = ['rcu_utilization', 'lttng_statedump_process_state', 'sched_waking',
 trace_list=[]
 first = 0
 
+
+if (opts.sig_patterns_filename) and (opts.load_sig): #load significant patterns from pickle file
+    f = open(opts.sig_patterns_filename,'rb')
+    significant_patterns = pickle.load(f)
+    f.close()
+    
 for s in trace_file_names:
     if s.find('#') > -1: continue #skip tracefile starting with # 
     if s == "": break
@@ -289,16 +300,24 @@ if not opts.use_hashing:
     else:
         order_centroids = km.cluster_centers_.argsort()[:, ::-1]
 
+    #print(km.cluster_centers_.shape)
+    #print(km.cluster_centers_)
     terms = vectorizer.get_feature_names()
-    print(terms)
+    #print(terms)
     print()
+    tmp = []
     for i in range(true_k):
         print("Cluster %d:" % i, end='')
-        for ind in order_centroids[i, :10]:
-            print(' %s' % terms[ind], end='')
+        for ind in order_centroids[i, :5]:
+            print(' %s' % terms[ind], end='...')
+            tmp.append(terms[ind])
         print()
 
-
+    significant_patterns = list(set(tmp)) #list of significant patterns saved as a pickle file
+    print(significant_patterns)
+    if opts.sig_patterns_filename:
+        f = open(opts.sig_patterns_filename,'wb')
+        pickle.dump(f,significant_patterns) 
 
 ############################## Now test the clustering with those trace entries starting with a '#'
 #TODO: do better coding by splitting the train and test data sets all at the beginning

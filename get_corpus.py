@@ -34,39 +34,84 @@ trace_name = sys.argv[1].split('.')[0]
 with open(sys.argv[1],'r') as f:
     trace_file_names = f.readlines()
 
-first = 0
 for s in trace_file_names:
     filename = s.splitlines()[0].split(':')[1]
-    tid = int(s.splitlines()[0].split(':')[2])
+    tids = [int (i) for i in s.splitlines()[0].split(':')[2:]] #generalized to handle multiple VMs per trace file and their tids
     if filename == "": break
+    pklfile = filename.split('kernel')[0]+'vm.pkl'
+    first = True
 
     trace_handle = col.add_trace(filename,'ctf')
     if trace_handle is None:
         raise RunTimeError('Cannot add trace')
         
     print('----------------- STARTING CORPUS EXTRACTION: ',filename)
-    trace=''
+    trace = {i: '' for i in tids} #initialize empty dict of {tid: trace string=''}
+    timestamp = {i: [] for i in tids} #initialize empty dict of {tid: event timestamp list=[]}
     index = 0
+#    j=0
    # iterate on events
     for event in col.events:
-        if event['tid'] == tid:
+        if event['tid'] in tids: #if event belongs to enlisted tid (qemu runnning the VM)
+            tid = event['tid']
             ts = event.timestamp
             if index == 1: 
                 start = ts
-            #if index >= 100: 
-            #    break
+#            if index >= 10: 
+#                break
             if not (event.name in stopwords): index = index + 1
-            trace = trace + ' ' + event.name.replace('_x86_','_')
-            if 'exit_reason' in event: trace = trace + '_' + str(event['exit_reason']) 
-            if 'vector' in event: trace = trace + '_' + str(event['vector'])
-            if 'vec' in event: trace = trace + '_' + str(event['vec'])
-            if 'irq' in event: trace = trace + '_' + str(event['irq'])
-    pklfile = filename.split('kernel')[0]+'vm.pkl'
+            trace[tid] = trace[tid] + ' ' + event.name.replace('_x86_','_')
+            if 'exit_reason' in event: trace[tid] = trace[tid] + '_' + str(event['exit_reason']) 
+            if 'vector' in event: trace[tid] = trace[tid] + '_' + str(event['vector'])
+            if 'vec' in event: trace[tid] = trace[tid] + '_' + str(event['vec'])
+            if 'irq' in event: trace[tid] = trace[tid] + '_' + str(event['irq'])
+            timestamp[tid].append(ts)
+            if (index % 1000 ==0): #temporarily store in file to free up memory
+                print(ts/1000000000, end=' Seconds \r', flush=True)
+                if (first): #if it is the first time then don't load the pkl file because there isn't any just dump 
+                    f = open(pklfile,'wb')
+                    pickle.dump(trace,f)
+                    pickle.dump(timestamp,f)
+                    f.close()
+                    first = False
+                else:
+                    f = open(pklfile,'rb')
+                    trace_old = pickle.load(f)
+                    timestamp_old = pickle.load(f)
+                    f.close()
+                    trace_new = {i: trace_old[i]+trace[i] for i in tids}
+                    timestamp_new = {i: timestamp_old[i]+timestamp[i] for i in tids}
+#                    print("**************************",j)
+#                    print("**************************",j)
+#                    for i in tids:
+#                        print(i,'::::::',trace_new[i])
+#                    for i in tids:
+#                        print(i,'::::::',timestamp_new[i])
+                    f = open(pklfile,'wb')
+                    pickle.dump(trace_new,f)
+                    pickle.dump(timestamp_new,f)
+                    f.close()
+                    trace_new = {}
+                    timestamp_new = {}
+                    trace_old = {}
+                    timestamp_old = {}
+#                    j=j+1
+#                    if (j==6): break
+                trace = {i: '' for i in tids} #reset to empty dict of {tid: trace string=''}
+                timestamp = {i: [] for i in tids} #reset to empty dict of {tid: event timestamp list=[]}
+                
+                
+    print("TIDS:", tids)
+    f = open(pklfile,'rb')
+    trace_old = pickle.load(f)
+    timestamp_old = pickle.load(f)
+    f.close()
+    trace_new = {i: trace_old[i]+trace[i] for i in tids}
+    timestamp_new = {i: timestamp_old[i]+timestamp[i] for i in tids}
     f = open(pklfile,'wb')
-    duration = float(ts - start)/1000000
-    pickle.dump(duration,f)
-    pickle.dump(index,f)
-    pickle.dump(trace,f)
+    pickle.dump(tids,f)
+    pickle.dump(trace_new,f)
+    pickle.dump(timestamp_new,f)
     f.close()
     
     col.remove_trace(trace_handle)

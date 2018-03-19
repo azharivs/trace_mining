@@ -22,12 +22,17 @@ for filename in trace_file_names:
         raise RunTimeError('Cannot add trace')
         
     # iterate on events
+    tid_list = []
     for event in col.events:
-        if (event.name == 'kvm_entry') or (event.name == 'kvm_x86_entry'):#this is the qemu thread running the VM (only works if single VM is running)
-            print(s,':',event['tid'])
-            f.write(s+':'+str(event['tid'])+'\n')
-            break
+        if (event.name == 'kvm_entry') or (event.name == 'kvm_x86_entry'):#this is the qemu thread running the VM (also works with multiple VMs)
+            if not (event['tid'] in tid_list):
+                tid_list.append(event['tid']) 
 
+    for tid in tid_list:
+        s = s+':'+str(tid)
+    
+    print(s)    
+    f.write(s+'\n')
     col.remove_trace(trace_handle)
 
 f.close()
