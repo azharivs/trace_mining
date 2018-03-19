@@ -12,7 +12,7 @@ where the traces are stored with the following format:
     timestamp_dict = pickle.load(f) as a dict of list of timestamps in nanoseconds and indexed by tid
 
 """
-
+from multiprocessing.dummy import Pool as ThreadPool 
 import pickle
 from collections import Counter
 import babeltrace
@@ -24,28 +24,15 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 import time
 
-# a trace collection holds one or more traces
-col = babeltrace.TraceCollection()
-
-# add the trace provided by the user (first command line argument)
-# (LTTng traces always have the 'ctf' format)
-
-duration = []
-items = []
-corpus=[]
-stopwords = ['rcu_utilization', 'lttng_statedump_process_state', 'sched_waking', 'sched_stat_wait', 'sched_stat_runtime', 'timer_hrtimer_cancel', 'timer_hrtimer_expire_exit', 'timer_cancel', 'kvm_fpu']
-
-trace_name = sys.argv[1].split('.')[0]
-with open(sys.argv[1],'r') as f:
-    trace_file_names = f.readlines()
-
-for s in trace_file_names:
-    filename = s.splitlines()[0].split(':')[1]
-    tids = [int (i) for i in s.splitlines()[0].split(':')[2:]] #generalized to handle multiple VMs per trace file and their tids
-    if filename == "": break
+def extract_corpus(tracepath):
+    filename = tracepath.splitlines()[0].split(':')[1]
+    tids = [int (i) for i in tracepath.splitlines()[0].split(':')[2:]] #generalized to handle multiple VMs per trace file and their tids
+    if filename == "": return
     pklfile = filename.split('kernel')[0]+'vm.pkl'
     first = True
 
+    # a trace collection holds one or more traces
+    col = babeltrace.TraceCollection()
     trace_handle = col.add_trace(filename,'ctf')
     if trace_handle is None:
         raise RunTimeError('Cannot add trace')
@@ -59,8 +46,6 @@ for s in trace_file_names:
         if event['tid'] in tids: #if event belongs to enlisted tid (qemu runnning the VM)
             tid = event['tid']
             ts = event.timestamp
-            if index == 1: 
-                start = ts
             if not (event.name in stopwords): index = index + 1
             trace[tid] = trace[tid] + ' ' + event.name.replace('_x86_','_')
             if 'exit_reason' in event: trace[tid] = trace[tid] + '_' + str(event['exit_reason']) 
@@ -109,4 +94,20 @@ for s in trace_file_names:
     f.close()
     
     col.remove_trace(trace_handle)
+    
+    return 
 
+
+# add the trace provided by the user (first command line argument)
+# (LTTng traces always have the 'ctf' format)
+
+stopwords = ['rcu_utilization', 'lttng_statedump_process_state', 'sched_waking', 'sched_stat_wait', 'sched_stat_runtime', 'timer_hrtimer_cancel', 'timer_hrtimer_expire_exit', 'timer_cancel', 'kvm_fpu']
+
+trace_name = sys.argv[1].split('.')[0]
+with open(sys.argv[1],'r') as f:
+    trace_file_names = f.readlines()
+
+pool = ThreadPool(4) 
+pool.map(extract_corpus,trace_file_names)
+pool.close()
+pool.join()
