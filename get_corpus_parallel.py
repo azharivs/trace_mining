@@ -12,7 +12,8 @@ where the traces are stored with the following format:
     timestamp_dict = pickle.load(f) as a dict of list of timestamps in nanoseconds and indexed by tid
 
 """
-from multiprocessing.dummy import Pool as ThreadPool 
+from multiprocessing import Pool #for multi processing
+from multiprocessing.dummy import Pool as ThreadPool  #its equivalent for multi threading
 import pickle
 from collections import Counter
 import babeltrace
@@ -25,9 +26,10 @@ from sklearn.feature_extraction.text import TfidfTransformer
 import time
 
 def extract_corpus(tracepath):
+    if tracepath == "": return
     filename = tracepath.splitlines()[0].split(':')[1]
-    tids = [int (i) for i in tracepath.splitlines()[0].split(':')[2:]] #generalized to handle multiple VMs per trace file and their tids
     if filename == "": return
+    tids = [int (i) for i in tracepath.splitlines()[0].split(':')[2:]] #generalized to handle multiple VMs per trace file and their tids
     pklfile = filename.split('kernel')[0]+'vm.pkl'
     first = True
 
@@ -53,35 +55,34 @@ def extract_corpus(tracepath):
             if 'vec' in event: trace[tid] = trace[tid] + '_' + str(event['vec'])
             if 'irq' in event: trace[tid] = trace[tid] + '_' + str(event['irq'])
             timestamp[tid].append(ts)
-            if (index % 1000 ==0): #temporarily store in file to free up memory
-                print(ts/1000000000, end=' Seconds \r', flush=True)
-                if (first): #if it is the first time then don't load the pkl file because there isn't any just dump 
-                    f = open(pklfile,'wb')
-                    pickle.dump(trace,f)
-                    pickle.dump(timestamp,f)
-                    f.close()
-                    first = False
-                else:
-                    f = open(pklfile,'rb')
-                    trace_old = pickle.load(f)
-                    timestamp_old = pickle.load(f)
-                    f.close()
-                    trace_new = {i: trace_old[i]+trace[i] for i in tids}
-                    timestamp_new = {i: timestamp_old[i]+timestamp[i] for i in tids}
-                    f = open(pklfile,'wb')
-                    pickle.dump(trace_new,f)
-                    pickle.dump(timestamp_new,f)
-                    f.close()
-                    trace_new = {}
-                    timestamp_new = {}
-                    trace_old = {}
-                    timestamp_old = {}
+            if (index == 100): #just reset the .tmp file at the beginning
+            	f = open(pklfile+'.tmp','wb')
+            	pickle.dump(trace,f)
+            	pickle.dump(timestamp,f)
+            	f.close()
+         
+            if (index > 0) and (index % 1000000 == 0): #temporarily store in file to free up memory
+                print(ts/1000000000, 'Seconds: ',filename, end='                   \r', flush=True)
+                f = open(pklfile+'.tmp','rb')
+                trace_old = pickle.load(f)
+                timestamp_old = pickle.load(f)
+                f.close()
+                trace_new = {i: trace_old[i]+trace[i] for i in tids}
+                timestamp_new = {i: timestamp_old[i]+timestamp[i] for i in tids}
+                f = open(pklfile+'.tmp','wb')
+                pickle.dump(trace_new,f)
+                pickle.dump(timestamp_new,f)
+                f.close()
+                trace_new = {}
+                timestamp_new = {}
+                trace_old = {}
+                timestamp_old = {}
                 trace = {i: '' for i in tids} #reset to empty dict of {tid: trace string=''}
                 timestamp = {i: [] for i in tids} #reset to empty dict of {tid: event timestamp list=[]}
                 
                 
     print("TIDS:", tids)
-    f = open(pklfile,'rb')
+    f = open(pklfile+'.tmp','rb') #there will definitely be a .tmp file because we created one when index == 1
     trace_old = pickle.load(f)
     timestamp_old = pickle.load(f)
     f.close()
@@ -94,7 +95,7 @@ def extract_corpus(tracepath):
     f.close()
     
     col.remove_trace(trace_handle)
-    
+    print("-------@ ",ts/1000000000," done with ",filename)
     return 
 
 
@@ -107,7 +108,8 @@ trace_name = sys.argv[1].split('.')[0]
 with open(sys.argv[1],'r') as f:
     trace_file_names = f.readlines()
 
-pool = ThreadPool(4) 
+pool = Pool(8) #Multi processing seems a better option for this script
+#pool = ThreadPool(8) 
 pool.map(extract_corpus,trace_file_names)
 pool.close()
 pool.join()
