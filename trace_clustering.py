@@ -162,7 +162,7 @@ for s in trace_file_names:
     filename = s.splitlines()[0].split(':')[1]
     if filename == "": break
     tid = int(s.splitlines()[0].split(':')[2])
-    lbl = int(s.splitlines()[0].split(':')[0])
+    lbls = [int(i) for i in s.splitlines()[0].split(':')[0].split(',')] #extract labels (which are separated by)
     filename = filename.replace("#","")
     trace_list.append(filename)    
     
@@ -195,19 +195,13 @@ for s in trace_file_names:
     else: #there is a corpus file for this trace so read from it
         print('================= READING FROM CORPUS FILE: ',corpus_filename)        
         f = open(corpus_filename,'rb')
-#        dur = pickle.load(f)
-#        index = pickle.load(f)
         tids = pickle.load(f)
         trace_dict = pickle.load(f)
         timestamp_dict = pickle.load(f)
         f.close()
         
-#    duration.append(dur)
-#    items.append(index)    
     corpus = corpus + list(trace_dict[i] for i in tids)
-    print(tids)
-    print(len(corpus))
-    for i in tids: #For now the value of tid is used as VM label. TODO: it should be its nature derived from the .tid file
+    for i in lbls: #populate the target class name array
         if first == 0:
             first = 1
             target=np.array(i)
@@ -349,12 +343,7 @@ for s in trace_file_names:
     filename = s.splitlines()[0].split(':')[1]
     if filename == "": break
     tid = int(s.splitlines()[0].split(':')[2])
-    lbl = int(s.splitlines()[0].split(':')[0])
-    if first == 0:
-        first = 1
-        target=np.array(lbl)
-    else:
-        target=np.append(target,lbl)
+    lbls = [int(i) for i in s.splitlines()[0].split(':')[0].split(',')] #extract labels (which are separated by)
         
     trace_list.append(filename)    
     
@@ -387,14 +376,19 @@ for s in trace_file_names:
     else: #there is a corpus file for this trace so read from it
         print('================= READING FROM CORPUS FILE: ',corpus_filename)        
         f = open(corpus_filename,'rb')
-        dur = pickle.load(f) #TODO needs to be adapted for the new multi VM pickle file format as done for the clustering above
-        index = pickle.load(f)
-        trace = pickle.load(f)
+        tids = pickle.load(f)
+        trace_dict = pickle.load(f)
+        timestamp_dict = pickle.load(f)
         f.close()
         
-    duration.append(dur)
-    items.append(index)    
-    corpus.append(trace)
+    corpus = corpus + list(trace_dict[i] for i in tids)
+    first = 0
+    for i in lbls: #populate the target class name array
+        if first == 0:
+            first = 1
+            target=np.array(i)
+        else:
+            target=np.append(target,i)
 
 Y = vectorizer.transform(corpus)
 
@@ -417,8 +411,8 @@ if opts.n_components:
 
 Y_new = km.predict(Y)
 
-print(Y_new)
-print(target.tolist())
-out = [statistics.mean(eq[c]) for c in Y_new] 
+print(Y_new) #list of predicted class
+print(target.tolist()) #list of actual classes that were to be predicted
+out = [statistics.mean(eq[c]) for c in Y_new]  #list of mean of the class number associated to a given cluster
 print(out)
 
