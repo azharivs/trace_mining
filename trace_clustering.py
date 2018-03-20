@@ -382,7 +382,6 @@ for s in trace_file_names:
         f.close()
         
     corpus = corpus + list(trace_dict[i] for i in tids)
-    first = 0
     for i in lbls: #populate the target class name array
         if first == 0:
             first = 1
@@ -411,8 +410,8 @@ if opts.n_components:
 
 Y_new = km.predict(Y)
 
-print(Y_new) #list of predicted class
-print(target.tolist()) #list of actual classes that were to be predicted
+print("Cluster Membership: ",Y_new) #list of predicted class
+print("Actual Classes:     ",target.tolist()) #list of actual classes that were to be predicted
 out = [statistics.mean(eq[c]) for c in Y_new]  #list of mean of the class number associated to a given cluster
-print(out)
+print("Predicted Classes:  ",out)
 
