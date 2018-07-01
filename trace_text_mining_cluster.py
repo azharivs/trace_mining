@@ -1,4 +1,5 @@
 #!/usr/bin/python3.5
+#TODO : Needs to be adapted to work with new format of vm.pkl files
 from collections import Counter
 import pickle
 import os.path
@@ -120,7 +121,6 @@ X = vectorizer.fit_transform(corpus)
 tokens = vectorizer.get_feature_names()
 freq = (X.toarray())[0].tolist()
 d = {tokens[k]:freq[k] for k in range(len(freq))}
-
 
 #Now everything is in the same variables so this part is executed regardless of reading from trace file or pattern file
 

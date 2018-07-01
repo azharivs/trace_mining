@@ -108,7 +108,7 @@ trace_name = sys.argv[1].split('.')[0]
 with open(sys.argv[1],'r') as f:
     trace_file_names = f.readlines()
 
-pool = Pool(8) #Multi processing seems a better option for this script
+pool = Pool(4) #Multi processing seems a better option for this script
 #pool = ThreadPool(8) 
 pool.map(extract_corpus,trace_file_names)
 pool.close()

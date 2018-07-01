@@ -21,12 +21,15 @@ for filename in trace_file_names:
     if trace_handle is None:
         raise RunTimeError('Cannot add trace')
         
+    index = 0
     # iterate on events
     tid_list = []
     for event in col.events:
         if (event.name == 'kvm_entry') or (event.name == 'kvm_x86_entry'):#this is the qemu thread running the VM (also works with multiple VMs)
+            index = index + 1
+#            if index == 100: break #uncomment this line to only consider the first 100 events. This should only be done when we know there is only one VM
             if not (event['tid'] in tid_list):
-                tid_list.append(event['tid']) 
+                tid_list.append(event['tid'])
 
     for tid in tid_list:
         s = s+':'+str(tid)
